@@ -23,10 +23,34 @@ export default function Page() {
   const [tab, setTab] = useState<'overview'|'documents'|'assistant'>('overview')
   const [message, setMessage] = useState('')
   const [messages, setMessages] = useState([{ from: 'ai', text: 'Hi Rahul. I found one missing document in your health claim. How can I help?' }])
+  const [isSending, setIsSending] = useState(false)
+  const [assistantError, setAssistantError] = useState('')
   const [uploaded, setUploaded] = useState(false)
   const [language, setLanguage] = useState('EN')
   const scroll = (id: string) => { document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' }); setMenu(false) }
-  const send = () => { if (!message.trim()) return; setMessages([...messages, { from: 'user', text: message }, { from: 'ai', text: 'Based on Section 4.2, this treatment appears covered. Upload the discharge summary to continue.' }]); setMessage('') }
+  const send = async () => {
+    const trimmed = message.trim()
+    if (!trimmed || isSending) return
+    const nextMessages = [...messages, { from: 'user' as const, text: trimmed }]
+    setMessages(nextMessages)
+    setMessage('')
+    setAssistantError('')
+    setIsSending(true)
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: nextMessages }),
+      })
+      if (!response.ok) throw new Error('The assistant is temporarily unavailable.')
+      const data = await response.json()
+      setMessages([...nextMessages, { from: 'ai', text: data.text }])
+    } catch (error) {
+      setAssistantError(error instanceof Error ? error.message : 'The assistant is temporarily unavailable.')
+    } finally {
+      setIsSending(false)
+    }
+  }
   return <main className="min-h-screen overflow-hidden bg-[#070a0f] text-[#eef6ff]">
     <Stars />
     <nav className="fixed inset-x-0 top-0 z-40 border-b border-white/[.07] bg-[#070a0f]/75 backdrop-blur-xl"><div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 lg:px-8"><Logo/><div className="hidden items-center gap-8 text-sm text-slate-400 md:flex"><button onClick={() => scroll('journey')}>How it works</button><button onClick={() => scroll('features')}>Features</button><button onClick={() => scroll('security')}>Security</button><button onClick={() => scroll('insurers')}>For insurers</button></div><div className="hidden items-center gap-3 md:flex"><span className="status"><span/> AI assistant online</span><button className="text-sm text-slate-300" onClick={() => setModal('agent')}>Sign in</button><button className="button button-small" onClick={() => setModal('demo')}>Get started <ArrowRight className="size-4"/></button></div><button className="md:hidden" onClick={() => setMenu(!menu)} aria-label="Open menu">{menu ? <X/> : <Menu/>}</button></div>{menu && <div className="flex flex-col gap-5 border-t border-white/[.07] bg-[#0b1017] p-6 text-slate-300 md:hidden"><button onClick={() => scroll('journey')}>How it works</button><button onClick={() => scroll('features')}>Features</button><button onClick={() => scroll('security')}>Security</button><button onClick={() => setModal('demo')}>Get started</button></div>}</nav>
